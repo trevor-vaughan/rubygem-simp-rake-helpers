@@ -88,15 +88,11 @@ module Simp::Rake::Build
         desc <<-EOM
           Build the DVD tarball(s).
 
-            * :chroot - The mock chroot to use for pkg:build
             * :key - What key to use for signing the RPMs
             * :docs - Whether or not to build the documentation
-            * :snapshot_release - Append the timestamp to the SIMP tarball(s)
         EOM
-        task :build,[:chroot,:key,:docs,:snapshot_release] => ['pkg:build','pkg:checksig','tar:validate'] do |t,args|
+        task :build,[:key,:docs] => ['pkg:build','pkg:checksig','tar:validate'] do |t,args|
           args.with_defaults(:docs => 'true')
-
-          validate_in_mock_group?
 
           if $tarball_tgt
             target_dists = ['simp6']

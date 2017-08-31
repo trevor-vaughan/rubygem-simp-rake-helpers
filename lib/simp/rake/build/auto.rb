@@ -193,16 +193,6 @@ module Simp::Rake::Build
                     # --------------------
                     target_data = get_target_data(target_release, iso_paths, yaml_file, do_checksum, verbose )
 
-                    simp6_mock_cfg = File.join($simp6_build_dir, 'mock.cfg')
-
-                    if File.exist?(simp6_mock_cfg)
-                      target_data['mock'] = simp6_mock_cfg
-
-                      if verbose
-                        $stderr.puts("Notice: Using mock config at #{simp6_mock_cfg}")
-                      end
-                    end
-
                     # check out subrepos
                     # --------------------
                     if do_checkout && !tarball
@@ -270,7 +260,7 @@ module Simp::Rake::Build
                       $tarball_tgt = File.join(distro_build_dir, 'DVD_Overlay', "SIMP-#{@simp_version}-#{distro}-#{version}-#{arch}.tar.gz")
 
                       Rake::Task['tar:build'].reenable
-                      Rake::Task['tar:build'].invoke(target_data['mock'],key_name,do_docs)
+                      Rake::Task['tar:build'].invoke(key_name,do_docs)
 
                       tarball = $tarball_tgt
                     end
@@ -623,7 +613,7 @@ module Simp::Rake::Build
               # Horrible state passing magic vars
               $tarball_tgt = File.join(@base_dir, 'build', 'DVD_Overlay', "SIMP-#{@simp_version}-#{target_data['flavor']}-#{target_data['os_version']}.tar.gz")
 
-              Rake::Task['tar:build'].invoke(target_data['mock'],key_name,do_docs)
+              Rake::Task['tar:build'].invoke(key_name,do_docs)
 
               tarball = $tarball_tgt
             end

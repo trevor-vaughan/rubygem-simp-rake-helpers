@@ -139,7 +139,10 @@ module Simp::Rake::Build::RpmDeps
     module_metadata = JSON.parse(File.read(metadata_json_file))
     module_name = module_metadata['name'].split(%r(-|/)).last
 
-    module_dep_info = rpm_dependency_metadata[module_name]
+    if rpm_dependency_metadata
+      module_dep_info = rpm_dependency_metadata[module_name]
+    end
+
     rpm_metadata_content = []
     begin
       if module_dep_info
@@ -153,10 +156,19 @@ module Simp::Rake::Build::RpmDeps
 
     rpm_metadata_file = File.join(dir, 'build', 'rpm_metadata', 'requires')
 
-    FileUtils.mkdir_p(File.dirname(rpm_metadata_file))
-    File.open(rpm_metadata_file, 'w') do |fh|
-      fh.puts(rpm_metadata_content.flatten.join("\n"))
-      fh.flush
+    current_metadata_content = []
+    if File.exist?(rpm_metadata_file)
+      current_metadata_content = File.read(rpm_metadata_file).lines.map(&:strip) - ['']
+    end
+
+    rpm_metadata_content.flatten!
+
+    unless (rpm_metadata_content - current_metadata_content).empty?
+      FileUtils.mkdir_p(File.dirname(rpm_metadata_file))
+      File.open(rpm_metadata_file, 'w') do |fh|
+        fh.puts(rpm_metadata_content.join("\n"))
+        fh.flush
+      end
     end
   end
 end
