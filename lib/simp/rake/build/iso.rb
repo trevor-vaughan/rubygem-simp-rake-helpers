@@ -93,6 +93,7 @@ module Simp::Rake::Build
           end
         end # End of prune_packages
 
+=begin
         desc <<-EOM
       Build the SIMP ISO(s).
        * :tarball - Path of the source tarball or directory containing the source
@@ -105,6 +106,7 @@ module Simp::Rake::Build
        ENV vars:
          - Set `SIMP_ISO_verbose=yes` to report file operations as they happen.
            EOM
+=end
         task :build,[:tarball,:unpacked_dvds,:prune] => [:prep] do |t,args|
           args.with_defaults(:unpacked_dvds => "#{@run_dir}", :prune => 'true')
 
@@ -319,6 +321,7 @@ module Simp::Rake::Build
           fail('Error: No ISO was built!') unless @simp_output_iso
         end
 
+=begin
         desc <<-EOM
         Build the source ISO.
           Note: The process clobbers the temporary and built files, rebuilds the
@@ -326,6 +329,7 @@ module Simp::Rake::Build
           while.
             * :key - The GPG key to sign the RPMs with. Defaults to 'prod'.
         EOM
+=end
         task :src,[:prep, :key] do |t,args|
           args.with_defaults(:key => 'prod')
 

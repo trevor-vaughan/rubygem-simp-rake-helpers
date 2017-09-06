@@ -38,16 +38,10 @@ module Simp::Rake::Build
           @build_dirs = {
             :modules => get_module_dirs(args[:method]),
             :aux => [
-              "#{@src_dir}/rsync",
               # Anything in here gets built!
-              "#{@src_dir}/assets/*",
-              # Legacy Compat
-              "#{@src_dir}/utils",
-              "#{@src_dir}/puppet/bootstrap"
+              "#{@src_dir}/assets/*"
             ],
-            :doc => "#{@src_dir}/doc",
-            :simp_cli => "#{@src_dir}/rubygems/simp_cli",
-            :simp => "#{@src_dir}",
+            :doc => "#{@src_dir}/doc"
           }
 
           @build_dirs[:aux].map!{|dir| dir = Dir.glob(dir)}
@@ -106,6 +100,7 @@ module Simp::Rake::Build
           end
         end
 
+=begin
         desc <<-EOM
           Prepare the GPG key space for a SIMP build.
 
@@ -115,6 +110,7 @@ module Simp::Rake::Build
           ENV vars:
             - Set `SIMP_PKG_verbose=yes` to report file operations as they happen.
         EOM
+=end
         task :key_prep,[:key] => [:prep] do |t,args|
           require 'securerandom'
           _verbose = ENV.fetch('SIMP_PKG_verbose','no') == 'yes'
@@ -260,6 +256,54 @@ module Simp::Rake::Build
           end
         end
 
+        def populate_rpm_dir(rpm_dir)
+          srpm_dir = File.join(File.dirname(rpm_dir), 'SRPMS')
+
+          FileUtils.mkdir_p(rpm_dir)
+          FileUtils.mkdir_p(srpm_dir)
+
+          rpm_metadata_filename = 'last_rpm_build_metadata.yaml'
+          rpm_metadata = %x(find -P #{@src_dir} -xdev -type f -name #{rpm_metadata_filename}).lines.map(&:strip).sort
+
+          fail("No #{rpm_metadata_filename} files found under #{@src_dir}") if rpm_metadata.empty?
+
+          rpm_metadata.each do |mf|
+            metadata = YAML.load_file(mf)
+            rpms = metadata['rpms']
+            srpms = metadata['srpms']
+
+            fail("No RPMs found at #{rpm_dir}") if (rpms.nil? || rpms.empty?)
+
+            Dir.chdir(rpm_dir) do
+              rpms.each_key do |rpm|
+                if @verbose
+                  puts "Copying #{rpm} to #{rpm_dir}"
+                end
+
+                arch = rpms[rpm]['metadata'][:arch]
+                FileUtils.mkdir_p(arch)
+
+                FileUtils.cp(rpms[rpm]['path'], arch)
+              end
+            end
+
+            Dir.chdir(srpm_dir) do
+              srpms.each_key do |srpm|
+                if @verbose
+                  puts "Copying #{srpm} to #{srpm_dir}"
+                end
+
+                arch = srpms[srpm]['metadata'][:arch]
+                FileUtils.mkdir_p(arch)
+
+                FileUtils.cp(srpms[srpm]['path'], arch)
+              end
+            end
+          end
+        end
+
+
+=begin
         desc <<-EOM
           Build the entire SIMP release.
 
@@ -269,6 +313,7 @@ module Simp::Rake::Build
             ENV vars:
               - Set `SIMP_PKG_verbose=yes` to report file operations as they happen.
         EOM
+=end
         task :build,[:docs,:key] => [:prep,:key_prep] do |t,args|
 
           _verbose = ENV.fetch('SIMP_PKG_verbose','no') == 'yes'
@@ -278,15 +323,13 @@ module Simp::Rake::Build
 
           check_dvd_env
 
-          Rake::Task['pkg:simp_cli'].invoke
           Rake::Task['pkg:aux'].invoke
           if "#{args.docs}" == 'true'
             Rake::Task['pkg:doc'].invoke
           end
           Rake::Task['pkg:modules'].invoke
 
-          # The main SIMP RPM must be built last!
-          Rake::Task['pkg:simp'].invoke
+          populate_rpm_dir(@rpm_dir)
 
           Rake::Task['pkg:signrpms'].invoke(args[:key])
         end
@@ -294,7 +337,8 @@ module Simp::Rake::Build
         desc <<-EOM
           Build the Puppet module RPMs.
 
-            * :method - The Puppetfile from which the repository information should be read. Defaults to 'tracking'
+            * :method - The Puppetfile from which the repository information
+                        should be read. Defaults to 'tracking'
 
             ENV vars:
               - Set `SIMP_PKG_verbose=yes` to report file operations as they happen.
@@ -341,18 +385,6 @@ module Simp::Rake::Build
         end
 
         desc <<-EOM
-          Build simp config rubygem RPM.
-
-          * :method - The Puppetfile from which the repository information should be read. Defaults to 'tracking'
-
-          ENV vars:
-            - Set `SIMP_PKG_verbose=yes` to report file operations as they happen.
-        EOM
-        task :simp_cli => [:prep] do |t,args|
-          build(@build_dirs[:simp_cli], t)
-        end
-
-        desc <<-EOM
           Build the SIMP non-module RPMs.
 
             ENV vars:
@@ -372,22 +404,12 @@ module Simp::Rake::Build
           build(@build_dirs[:doc],t)
         end
 
-        desc <<-EOM
-          Build the main SIMP RPM.
-
-            ENV vars:
-              - Set `SIMP_PKG_verbose=yes` to report file operations as they happen.
-        EOM
-        task :simp => [:prep] do |t,args|
-          build(@build_dirs[:simp],t,false)
-        end
-
         desc "Sign the RPMs."
         task :signrpms,[:key,:rpm_dir,:force] => [:prep,:key_prep] do |t,args|
           which('rpmsign') || raise(StandardError, 'Could not find rpmsign on your system. Exiting.')
 
           args.with_defaults(:key => 'dev')
-          args.with_defaults(:rpm_dir => "#{@build_dir}/SIMP/*RPMS")
+          args.with_defaults(:rpm_dir => File.join(File.dirname(@rpm_dir), '*RPMS'))
           args.with_default(:force => 'false')
 
           force = (args[:force].to_s == 'false' ? false : true)
@@ -414,6 +436,7 @@ module Simp::Rake::Build
           end
         end
 
+=begin
         desc <<-EOM
           Check that RPMs are signed.
 
@@ -421,6 +444,7 @@ module Simp::Rake::Build
               * :rpm_dir - A directory containing RPM files to check. Default #{@build_dir}/SIMP
               * :key_dir - The path to the GPG keys you want to check the packages against. Default #{@src_dir}/assets/simp-gpgkeys/
         EOM
+=end
         task :checksig,[:rpm_dir,:key_dir] => [:prep] do |t,args|
           begin
             args.with_defaults(:rpm_dir => @pkg_dirs[:simp])

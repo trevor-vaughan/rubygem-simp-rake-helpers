@@ -308,7 +308,7 @@ module Simp::Rake
 
                 # See if we have the ability to install things
                 unless Process.uid == 0
-                  unless %x(sudo -l) =~ %r(NOPASSWD:\s+(ALL|yum( install)?))
+                  unless %x(sudo -ln) =~ %r(NOPASSWD:\s+(ALL|yum( install)?))
                     raise <<-EOM
   Please install the following dependencies and try again:
   #{rpm_build_deps.map{|x| x = "  * #{x}"}.join("\n")}
